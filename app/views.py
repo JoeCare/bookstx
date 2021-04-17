@@ -1,7 +1,7 @@
 from flask.views import MethodView, View
 from .models import Book, BookSchema, db, mm
 from flask import request, jsonify
-import requests
+import requests, re
 
 
 # def get_books():
@@ -13,7 +13,7 @@ import requests
 #     for book in book_items:
 #         info = book["volumeInfo"]
 #         imgs = info["imageLinks"]
-#         book_id = book["id"]
+#         _id = book["id"]
 #         title = info["title"]
 #         authors = info["authors"]
 #         published_date = info["publishedDate"]
@@ -27,16 +27,16 @@ import requests
 #         #     average_rating = info["averageRating"]
 #         # except KeyError as err:
 #         #     print(err.args)
-#             print(book_id, title, authors, published_date, thumbnail)
+#             print(_id, title, authors, published_date, thumbnail)
 book_schema = BookSchema()
-books_schema = BookSchema(many=True,
-                          exclude=['ratings_count', 'average_rating'])
+books_schema = BookSchema(many=True)
+                          # exclude=['ratings_count', 'average_rating'])
 
 
 class BookScrap(MethodView):
 
     def post(self):
-        books_url = "https://www.googleapis.com/books/v1/volumes?q=love"
+        books_url = "https://www.googleapis.com/books/v1/volumes?q=Hobbit"
         req = requests.get(books_url).json()
         book_items = req["items"]
         # dig_data = dict_data["items"][0]["volumeInfo"]
@@ -50,6 +50,7 @@ class BookScrap(MethodView):
                 # book_dict['authors'] = info["authors"]
                 book_dict['authors'] = ", ".join(info["authors"])
                 book_dict['published_date'] = info["publishedDate"]
+                # book_dict['publisher'] = info["publisher"]
                 book_dict['thumbnail'] = imgs["thumbnail"]
                 if "categories" in info.keys():
                     book_dict['categories'] = ", ".join(info["categories"])
@@ -78,21 +79,34 @@ class BookScrap(MethodView):
 
 class BooksCrudAPI(MethodView):
 
-    def get(self, book_id):
-        if book_id is None:
-            # return a list of books
-            search_queries = request.args.to_dict()
-            print(search_queries)
-            if search_queries:
+    def get(self, _id):
+        """
+        Return list of all records at /books or particular one at /books/<id>
+        :param _id:                 main ID number of record in our database
+        :return single record:      retrieved according to given _id
+        :return collection:         return all records of /books resource
+        """
+        if _id is None:
+            query_string = request.args.to_dict()
+            queries = ['sort', 'filter', 'authors',
+                       'published_date', 'categories']
+            if query_string:
+                if re.compile('|'.join(queries), re.IGNORECASE).search(
+                        str(query_string)):
+                    same = set(query_string).intersection(set(queries))
 
-                return f'args given!\n{search_queries}'
+                    return jsonify({"?": query_string},
+                                   {400: 'Missing or invalid parameters!'})
+                return jsonify({400: 'Parameters required!'},
+                               {"Possible queries": queries})
             else:
+                # return list without custom queries
                 books = Book.query.all()
                 results = books_schema.dump(books)
                 return jsonify(results)
-
         else:
-            book = Book.query.filter_by(id=book_id).one_or_none()
+            # return single record according to _id
+            book = Book.query.filter_by(id=_id).one_or_none()
             if book:
                 result = book_schema.dump(book)
                 return jsonify(result)
@@ -113,10 +127,10 @@ class BooksCrudAPI(MethodView):
         return jsonify(
             201, f"Instances loaded: ") # {dig_data}", dict_data)
 
-    def delete(self, book_id):
+    def delete(self, _id):
         # delete a single book
         pass
 
-    def put(self, book_id):
+    def put(self, _id):
         # update a single book
         pass
