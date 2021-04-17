@@ -1,12 +1,13 @@
 from app import app
-from app.views import BooksAPI
+from app.views import BooksCrudAPI, BookScrap
 
-books_api_view = BooksAPI.as_view('books-api')
+books_fetch_db = BookScrap.as_view('books-fetch')
+books_api_view = BooksCrudAPI.as_view('books-api')
 
 app.add_url_rule('/books', defaults={'book_id': None},
                  view_func=books_api_view, methods=['GET'])
 app.add_url_rule('/books', view_func=books_api_view, methods=['POST'])
-app.add_url_rule('/db', view_func=books_api_view, methods=['POST'])
+app.add_url_rule('/db', view_func=books_fetch_db, methods=['POST'])
 app.add_url_rule('/books/<book_id>', view_func=books_api_view,
                  methods=['GET', 'PUT', 'DELETE'])
 

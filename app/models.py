@@ -27,10 +27,6 @@ class Book(db.Model):
         for k, v in dictionary.items():
             setattr(self, k, v)
 
-    def create_from(self, data_dict):
-        for k, v in data_dict.items():
-            setattr(self, k, v)
-
     def serialize(self):
         """Serialize record fields for list view"""
         return {
@@ -53,6 +49,9 @@ class Book(db.Model):
             "county_code": self.country_code,
             "city": self.city,
             }
+
+    def __repr__(self):
+        return f'{self.title}, {self.published_date}'
 
 
 class BookSchema(mm.SQLAlchemyAutoSchema):
