@@ -4,6 +4,16 @@ from flask import request, jsonify
 import requests, re
 
 
+def queried_book():
+    queried_book = Book.query.filter(Book.email.endswith('@example.com')).all()
+    queried_book1 = Book.query.order_by(Book.title).all()
+    queried_book2 = Book.query.limit(1).all()
+
+    """Instead of get() one can use get_or_404() 
+    and instead of first() first_or_404(). 
+    This will raise 404 errors instead of returning None:"""
+    pass
+
 # def get_books():
 #     req = requests.get(
 #         "https://www.googleapis.com/books/v1/volumes?q=Hobbit").json()
@@ -75,7 +85,9 @@ class BookScrap(MethodView):
 #     "sort": Book.query.order_by()
 #
 #     }
-
+# same = set(query_string).intersection(set(queries))
+# if re.compile('|'.join(queries), re.IGNORECASE).search(
+#         str(query_string)):
 
 class BooksCrudAPI(MethodView):
 
@@ -89,23 +101,68 @@ class BooksCrudAPI(MethodView):
         if _id is None:
             query_string = request.args.to_dict()
             queries = ['sort', 'filter', 'authors',
-                       'published_date', 'categories']
-            if query_string:
-                if re.compile('|'.join(queries), re.IGNORECASE).search(
-                        str(query_string)):
-                    same = set(query_string).intersection(set(queries))
+                       'published_date', 'categories', 'title']
+            use_of_queries = [
+                "Querying through URL, API response customization",
+                {"Basic usage": "/resource?query",
+                 "Type one of the valid variables after quotation mark":
+                    queries[2:5],
+                 "Examples": [
+                    {"/resource?published_date=1882":
+                        "This return only records published at particular "
+                        "year"},
+                    {"/resource?authors='Jan Morsztyn'":
+                        "That query perform database lookup to find records"
+                        "co-written by indicated authors"},
+                    {"/resource?categories=Algorithms":
+                        "Return records containing such category label"},
+                    {"/resource?title=Curious":
+                        "Response more or less loosely narrowed by title "
+                        "part"},
+                    {"/resource?sort=-title":
+                        "Organise response as sorted by title -descending"},
+                    {"/resource?sort=authors":
+                        "Sorted alphabetically with writers names (a-z)"},
+                    {"/resource?filter=authors&authors='Marek Grechura'":
+                        "Little bit different from antecedents. Require more "
+                        "then one key:value pair - those indicates "
+                        "filtering  particular attribute of specified value."}
+                     ],
+                    }
+                ]
+            keys_re = re.compile(r"\b" + r"\b|".join(queries[0:2]) + r"\b")
+            vals_re = re.compile(r"\b" + r"\b|".join(queries[2:6]) + r"\b")
+            if query_string: # and (set(query_string).isdisjoint(queries)):
+                keys = keys_re.findall(str(query_string))
+                vals = vals_re.findall(str(query_string))
+                for k, v in query_string.items():
+                    print(k,v,query_string)
+                    if keys:
+                        if k == 'sort' and v.startswith("-"):
+                            value = vals_re.findall(v)
+                            print(value)
+                            books_desc = Book.query.order_by(
+                                Book.value.desc()).all()
+                            result = books_schema.dump(books_desc)
+                            return jsonify(result)
+                        # sortuje sie elegabcko desc po tytule
+                        # tylko v nie dziala w query...
+                        elif not v.startswith("-") and k == 'sort':
+                            books_asc = Book.query.order_by(
+                                Book.v.asc()).all()
+                            result = books_schema.dump(books_asc)
+                            return jsonify(result)
 
-                    return jsonify({"?": query_string},
-                                   {400: 'Missing or invalid parameters!'})
+                    # return jsonify({"?": query_string},
+                    #                {400: 'Missing or invalid parameters!'})
                 return jsonify({400: 'Parameters required!'},
-                               {"Possible queries": queries})
+                               {"Possible queries": queries}, use_of_queries)
             else:
                 # return list without custom queries
                 books = Book.query.all()
                 results = books_schema.dump(books)
                 return jsonify(results)
         else:
-            # return single record according to _id
             book = Book.query.filter_by(id=_id).one_or_none()
             if book:
                 result = book_schema.dump(book)
@@ -119,7 +176,8 @@ class BooksCrudAPI(MethodView):
         class
         :return:        201 on success, 406 if instance exists
         """
-        data_url = "https://www.googleapis.com/books/v1/volumes?q=Hobbit"
+        data_set = request.get_json()
+
         # instances = get_data_dict(data_url)
         # new_loc = Book(dict_data["items"][0]["volumeInfo"])
         # db.session.add(new_loc)
