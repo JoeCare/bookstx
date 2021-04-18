@@ -26,6 +26,7 @@ class DevConfig(Config):
     DEBUG = True
     TESTING = True
     SQLALCHEMY_ECHO = False
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(BASE_DIR, 'app.db')
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(BASE_DIR,
+                                                          'app/app.db')
     # DATABASE_URI = "sqlite:///:memory:"
     # DATABASE_URI = getenv('DEV_DATABASE_URI')

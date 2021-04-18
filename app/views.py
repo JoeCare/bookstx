@@ -99,9 +99,13 @@ class BooksCrudAPI(MethodView):
         :return collection:         return all records of /books resource
         """
         if _id is None:
-            query_string = request.args.to_dict()
-            queries = ['sort', 'filter', 'authors',
-                       'published_date', 'categories', 'title']
+            queries = ['authors', 'published_date', 'categories', 'title']
+            ["sorting"] = request.args.get('sort')
+            filtering = request.args.get('filter')
+            q_authors = request.args.get('authors')
+            q_published = request.args.get('published_date')
+            q_categories = request.args.get('categories')
+            q_title = request.args.get('title')
             use_of_queries = [
                 "Querying through URL, API response customization",
                 {"Basic usage": "/resource?query",
@@ -130,28 +134,22 @@ class BooksCrudAPI(MethodView):
                      ],
                     }
                 ]
-            keys_re = re.compile(r"\b" + r"\b|".join(queries[0:2]) + r"\b")
-            vals_re = re.compile(r"\b" + r"\b|".join(queries[2:6]) + r"\b")
-            if query_string: # and (set(query_string).isdisjoint(queries)):
-                keys = keys_re.findall(str(query_string))
-                vals = vals_re.findall(str(query_string))
-                for k, v in query_string.items():
-                    print(k,v,query_string)
-                    if keys:
-                        if k == 'sort' and v.startswith("-"):
-                            value = vals_re.findall(v)
-                            print(value)
-                            books_desc = Book.query.order_by(
-                                Book.value.desc()).all()
-                            result = books_schema.dump(books_desc)
-                            return jsonify(result)
-                        # sortuje sie elegabcko desc po tytule
-                        # tylko v nie dziala w query...
-                        elif not v.startswith("-") and k == 'sort':
-                            books_asc = Book.query.order_by(
-                                Book.v.asc()).all()
-                            result = books_schema.dump(books_asc)
-                            return jsonify(result)
+            keys_re = re.compile(r"\b" + r"\b|".join(['sort','filter']) + r"\b")
+            vals_re = re.compile(r"\b" + r"\b|".join(queries) + r"\b")
+            if sorting or filtering:
+                print(sorting, filtering)
+                if sorting:
+                    books_desc = Book.query.order_by(
+                        Book.title.desc()).all()
+                    result = books_schema.dump(books_desc)
+                    return jsonify(result)
+                    # sortuje sie elegabcko desc po tytule
+                    # tylko v nie dziala w query...
+                elif filtering:
+                    books_asc = Book.query.order_by(
+                        Book.title.asc()).all()
+                    result = books_schema.dump(books_asc)
+                    return jsonify(result)
 
                     # return jsonify({"?": query_string},
                     #                {400: 'Missing or invalid parameters!'})
