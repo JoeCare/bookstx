@@ -4,6 +4,69 @@ from flask import request, jsonify
 import requests, re
 
 
+book_schema = BookSchema()
+books_schema = BookSchema(many=True)
+use_of_queries = [
+                "API response customization. Query through URL.",
+                "Type one of the valid variables after "
+                "quotation mark",
+                {
+                    "Basic usage": "/resource?query",
+                    "Attribute NOTICE": "Misspelled attributes are ignored!",
+                    "Attributes": "authors, authors_like, published_date, "
+                                  "categories, categories_like "
+                                  "title, title_like",
+                    "Examples": [
+                        {
+                            "/resource?published_date=1882":
+                                "This return only records published at "
+                                "given date"
+                            },
+                        {
+                            "/resource?authors='Jan Morsztyn'":
+                                "Return only records written by specified "
+                                "authors"
+                            },
+                        {
+                            "/resource?authors_like=Jan":
+                                "Return all records written by authors "
+                                "with similar names"
+                            },
+                        {
+                            "/resource?categories=Algorithms":
+                                "Return only records of that particular "
+                                "category/categories"
+                            },
+                        {
+                            "/resource?categories_like=Rel":
+                                "Return all records containing given phrase "
+                                "within it's categories labels"
+                            },
+                        {
+                            "/resource?title='The Hobbit,"
+                            " Or There and Back Again'":
+                                "Return only records of given title"
+                            },
+                        {
+                            "/resource?title_like='Hobbit'":
+                                "Return all records with title similar to or "
+                                "containing given phrase"
+                            },
+                        {
+                            "/resource?sort=-authors":
+                                "Return list of records sorted according to "
+                                "authors names in descending order"
+                            },
+                        {
+                            "/resource?sort=published_date":
+                                "Return list of records sorted according to"
+                                " publication time in ascending order"
+                            },
+                        ],
+                    },
+                ]
+
+
 def queried_book():
     """Instead of get() one can use get_or_404()
     and instead of first() first_or_404().
@@ -21,47 +84,118 @@ def ordered_books(dict_of_queries):
     book_attrs = ['authors', 'published_date', 'categories', 'title']
     book_attrs_pattern = re.compile(r"\b" + r"\b|".join(book_attrs) + r"\b",
                                     re.IGNORECASE)
-    # IF len(dict_of_queries) <= 2: xd
+    order = None
+    by_column = None
+    base_query = f"SELECT * FROM books"
+    filter_query = None
+    sort_query = None
+    filter_error = None
+    sorting_error = None
+    filter_like_error = None
     for k, v, in dict_of_queries.items():
         if k == "sort" and book_attrs_pattern.findall(v):
             if v.startswith("-"):
                 order = 'DESC'
-                column = v.replace("-", "")
+                by_column = v.replace("-", "")
             else:
                 order = 'ASC'
-                column = v
-            sort_query = db.session.execute(
-                f"SELECT * FROM books ORDER BY {column} {order};")
-            result = books_schema.dump(sort_query)
-            return jsonify(result)
+                by_column = v
+            sort_query = f"ORDER BY {by_column} {order}"
+            # sort_query = db.session.execute(
+            #     f"{base_query} ORDER BY {by_column} {order};")
         elif k == "sort":
-            return jsonify({400: f'Error: Invalid parameter: {v}'},
-                           use_of_queries)
+            sorting_error = {400: f'Sorting error: Invalid parameter: "{v}"'}
         else:
             if k.endswith("_like"):
                 column = k.replace("_like", "")
-                value = v.replace("'","").replace('"','')
-                filter_query = db.session.execute(
-                    f"SELECT * FROM books WHERE {column} LIKE '%{value}%';")
-                result = books_schema.dump(filter_query)
-                print(result)
-                if result:
-                    return jsonify(result)
+                value = v.replace("'", "").replace('"', '')
+                filter_query = f"WHERE {column} LIKE '%{value}%'"
+                check_filter = db.session.execute(f"{base_query} {filter_query}")
+                if books_schema.dump(check_filter):
+                    pass
                 else:
-                    return jsonify({404: f'Error: Parameters not found: "'
-                                         f'{value}"'},
-                                   use_of_queries)
+                    filter_error = {404: f'Filter error: Parameters not found: '
+                                         f'"{v}"'}
             else:
                 value = v.replace("'", "").replace('"', '')
-                filter_query = db.session.execute(
-                    f"SELECT * FROM books WHERE {k}='{value}';")
-                result = books_schema.dump(filter_query)
-                print(result)
-                if result:
-                    return jsonify(result)
+                filter_query = f"WHERE {k}='{value}'"
+                check_filter = db.session.execute(f"{base_query} {filter_query}")
+                if books_schema.dump(check_filter):
+                    pass
                 else:
-                    return jsonify({404: f'Error: Parameters not found: "{v}"'},
-                                   use_of_queries)
+                    filter_error = {404: f'Filter error: Parameters not found: '
+                                         f'"{v}"'}
+    # q_dict = {}
+    errors = []
+    custom_query = f"{filter_query} {sort_query}".replace("None","")
+    print(custom_query)
+    final_query = f"{base_query} {custom_query}"
+    print(final_query)
+    # result = books_schema.dump(db.session.execute(final_query))
+    if filter_error or sorting_error:
+        if filter_error:
+            errors.append(filter_error)
+        if sorting_error:
+            errors.append(sorting_error)
+        # if filter_like_error:
+        #     errors.append(filter_like_error)
+        return jsonify(errors, use_of_queries)
+    if filter_query or sort_query:
+        result = books_schema.dump(db.session.execute(final_query))
+        return jsonify(result)
+    # elif filter_error is not None and sorting_error is not None:
+    #     return jsonify(filter_error, sorting_error)
+    # elif filter_error is None:
+    #     return jsonify(sorting_error)
+    # elif sorting_error is None:
+    #     return jsonify(filter_error)
+    # return jsonify(filter_error, sorting_error)
+
+    # IF len(dict_of_queries) <= 2: xd
+
+    # for k, v, in dict_of_queries.items():
+    #     if k == "sort" and book_attrs_pattern.findall(v):
+    #         if v.startswith("-"):
+    #             order = 'DESC'
+    #             column = v.replace("-", "")
+    #         else:
+    #             order = 'ASC'
+    #             column = v
+    #         sort_query = db.session.execute(
+    #             f"SELECT * FROM books ORDER BY {column} {order};")
+    #         # sort_query = db.session.execute(
+    #         #     f"{final_query} ORDER BY {column} {order};")
+    #         result = books_schema.dump(sort_query)
+    #         print('res', result, 'q', sort_query)
+    #         return jsonify(result)
+    #     elif k == "sort":
+    #         return jsonify({400: f'Error: Invalid parameter: {v}'},
+    #                        use_of_queries)
+    #     else:
+    #         if k.endswith("_like"):
+    #             column = k.replace("_like", "")
+    #             value = v.replace("'", "").replace('"', '')
+    #             filter_query = db.session.execute(
+    #                 f"SELECT * FROM books WHERE {column} LIKE '%{value}%';")
+    #             result = books_schema.dump(filter_query)
+    #             print(result)
+    #             if result:
+    #                 return jsonify(result)
+    #             else:
+    #                 return jsonify({404: f'Error: Parameters not found: "'
+    #                                      f'{value}"'},
+    #                                use_of_queries)
+    #         else:
+    #             value = v.replace("'", "").replace('"', '')
+    #             filter_query = db.session.execute(
+    #                 f"SELECT * FROM books WHERE {k}='{value}';")
+    #             result = books_schema.dump(filter_query)
+    #             print(result)
+    #             if result:
+    #                 return jsonify(result)
+    #             else:
+    #                 return jsonify({404: f'Error: Parameters not found: "{v}"'},
+    #                                use_of_queries)
 
     # db.session.add(result)
     # db.session.commit()
@@ -100,47 +234,6 @@ def ordered_books(dict_of_queries):
         # print(k, v, dict_of_queries)
 
     # return title_asc, title_desc, published_asc, published_desc
-
-
-book_schema = BookSchema()
-books_schema = BookSchema(many=True)
-use_of_queries = [
-                "API response customization. Query through URL.",
-                "Type one of the valid variables after "
-                "quotation mark",
-                {
-                    "Basic usage": "/resource?query",
-                    "Examples": [
-                        {
-                            "/resource?published_date=1882":
-                                "This return only records published at "
-                                "particular "
-                                "year"
-                            },
-                        {
-                            "/resource?authors='Jan Morsztyn'":
-                                "That query perform database lookup to find "
-                                "records"
-                                "co-written by indicated authors"
-                            },
-                        {
-                            "/resource?categories=Algorithms":
-                                "Return records containing such category label"
-                            },
-                        {
-                            "/resource?title=Curious":
-                                "Response more or less loosely narrowed by "
-                                "title "
-                                "part"
-                            },
-                        {
-                            "/resource?sort=-authors":
-                                "Sort list of records by authors names in "
-                                "descending order"
-                            },
-                        ],
-                    },
-                ]
 
 
 class BookScrap(MethodView):
@@ -217,12 +310,12 @@ class BooksCrudAPI(MethodView):
                     if v:
                         query_strings[k] = v
                         print('to func', query_dict, 'w this', query_strings)
-                sor = ordered_books(query_strings)
+                custom_queried = ordered_books(query_strings)
                 print('to func', query_dict, 'w this', query_strings)
 
                     # if "-" in query_dict["order_by"]:
                         #     ta, td, pa, pd = order_byed_books(query_dict)
-                return sor
+                return custom_queried
                     #     return jsonify(td)
                     # elif query_dict["order_by"]:
                     #     ta, td, pa, pd = order_byed_books(query_dict)
@@ -236,7 +329,7 @@ class BooksCrudAPI(MethodView):
                 # return list without custom queries
                 # resources = self.__db__.session.query(self.__model__).all()
                 books = Book.query.all()
-                print(books)
+                print(books[:3])
                 if books:
                     results = books_schema.dump(books)
                     return jsonify(results)
