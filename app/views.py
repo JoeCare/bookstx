@@ -33,22 +33,44 @@ def ordered_books(dict_of_queries):
                                     re.IGNORECASE)
     for k, v, in dict_of_queries.items():
         if k == "sort" and book_attrs_pattern.findall(v):
-            print(book_attrs_pattern.findall(v))
             if v.startswith("-"):
                 order = 'DESC'
-                attribute = v.replace("-","")
+                column = v.replace("-", "")
             else:
                 order = 'ASC'
-                attribute = v
-            dbq3 = db.session.execute(
-                f"SELECT * FROM books ORDER BY {attribute} {order};")
-            result = books_schema.dump(dbq3)
+                column = v
+            sort_query = db.session.execute(
+                f"SELECT * FROM books ORDER BY {column} {order};")
+            result = books_schema.dump(sort_query)
             return jsonify(result)
         elif k == "sort":
-            print('val:', v, book_attrs_pattern.findall(v))
-            return jsonify({400: 'Error: Invalid parameter!'}, use_of_queries)
+            return jsonify({400: f'Error: Invalid parameter: {v}'},
+                           use_of_queries)
         else:
-            pass
+            if k.endswith("_like"):
+                column = k.replace("_like", "")
+                value = v.replace("'","").replace('"','')
+                filter_query = db.session.execute(
+                    f"SELECT * FROM books WHERE {column} LIKE '%{value}%';")
+                result = books_schema.dump(filter_query)
+                print(result)
+                if result:
+                    return jsonify(result)
+                else:
+                    return jsonify({404: f'Error: Parameters not found: "'
+                                         f'{value}"'},
+                                   use_of_queries)
+            else:
+                value = v.replace("'", "").replace('"', '')
+                filter_query = db.session.execute(
+                    f"SELECT * FROM books WHERE {k}='{value}';")
+                result = books_schema.dump(filter_query)
+                print(result)
+                if result:
+                    return jsonify(result)
+                else:
+                    return jsonify({404: f'Error: Parameters not found: "{v}"'},
+                                   use_of_queries)
 
     # db.session.add(result)
     # db.session.commit()
@@ -92,8 +114,9 @@ def ordered_books(dict_of_queries):
 book_schema = BookSchema()
 books_schema = BookSchema(many=True)
 use_of_queries = [
-                "Querying through URL, API response customization",
-                "Type one of the valid variables after quotation mark",
+                "API response customization. Query through URL.",
+                "Type one of the valid variables after "
+                "quotation mark",
                 {
                     "Basic usage": "/resource?query",
                     "Examples": [
@@ -190,9 +213,12 @@ class BooksCrudAPI(MethodView):
             query_dict = {}
             query_dict["sort"] = request.args.get('sort')
             query_dict["authors"] = request.args.get('authors')
+            query_dict["authors_like"] = request.args.get('authors_like')
             query_dict["published_date"] = request.args.get('published_date')
             query_dict["categories"] = request.args.get('categories')
+            query_dict["categories_like"] = request.args.get('categories_like')
             query_dict["title"] = request.args.get('title')
+            query_dict["title_like"] = request.args.get('title_like')
             if any(query_dict.values()): #  and any(query_dict.values()):
                 print('querydict:', query_dict)
                 query_strings = {}
