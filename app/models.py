@@ -65,6 +65,8 @@ class BookSchema(mm.SQLAlchemyAutoSchema):
         load_instance = True
         # fields = ['__all__']
         # exclude = ('categories', 'authors')
+        dump_only = ('thumbnail')
 
+    thumbnail = fields.fields.Url()
     # categories = fields.fields.List(fields.fields.Str())
     # authors = fields.fields.List(fields.fields.Str())

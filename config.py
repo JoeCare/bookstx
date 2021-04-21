@@ -1,5 +1,5 @@
 import os
-from os import path, getenv
+from os import getenv
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
