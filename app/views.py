@@ -18,19 +18,10 @@ def ordered_books(dict_of_queries):
     Return serialized book objects with ordering depending on
     parameters passed to function.
     """
-    # key1 = 'published_date'
-    # key = 'authors'
-    vals = ['order_by', 'asc']
-    # builder = Book.query # .from_statement()
-    # builder1 = builder.filter(getattr(Book, key).in_(vals))
-    # print('build', builder1)
-    # dbq1 = db.session.execute(
-    #     'SELECT * FROM books ORDER BY',(f'authors', 'ASC'))
-    # dbq2 = db.session.execute(
-    #     "SELECT * FROM books ORDER BY (?) ASC (?) DESC", (key,))
     book_attrs = ['authors', 'published_date', 'categories', 'title']
     book_attrs_pattern = re.compile(r"\b" + r"\b|".join(book_attrs) + r"\b",
                                     re.IGNORECASE)
+    # IF len(dict_of_queries) <= 2: xd
     for k, v, in dict_of_queries.items():
         if k == "sort" and book_attrs_pattern.findall(v):
             if v.startswith("-"):
@@ -226,10 +217,12 @@ class BooksCrudAPI(MethodView):
                     if v:
                         query_strings[k] = v
                         print('to func', query_dict, 'w this', query_strings)
-                        sor = ordered_books(query_strings)
-                        # if "-" in query_dict["order_by"]:
+                sor = ordered_books(query_strings)
+                print('to func', query_dict, 'w this', query_strings)
+
+                    # if "-" in query_dict["order_by"]:
                         #     ta, td, pa, pd = order_byed_books(query_dict)
-                        return sor
+                return sor
                     #     return jsonify(td)
                     # elif query_dict["order_by"]:
                     #     ta, td, pa, pd = order_byed_books(query_dict)
@@ -237,7 +230,7 @@ class BooksCrudAPI(MethodView):
 
                     # return jsonify({"?": query_string},
                     #                {400: 'Missing or invalid parameters!'})
-                return jsonify({400: 'Parameters required!'}, use_of_queries)
+                # return jsonify({400: 'Parameters required!'}, use_of_queries)
             else:
                 print('List w/no queries')
                 # return list without custom queries
