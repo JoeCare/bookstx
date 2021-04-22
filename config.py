@@ -17,7 +17,7 @@ class ProdConfig(Config):
     FLASK_ENV = 'production'
     DEBUG = False
     TESTING = False
-    DATABASE_URI = getenv('PROD_DATABASE_URI')
+    SQLALCHEMY_DATABASE_URI = getenv('DATABASE_URI')
     SQLALCHEMY_ECHO = True
 
 
@@ -29,4 +29,3 @@ class DevConfig(Config):
     SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(BASE_DIR,
                                                           'app/app.db')
     # DATABASE_URI = "sqlite:///:memory:"
-    # DATABASE_URI = getenv('DEV_DATABASE_URI')
