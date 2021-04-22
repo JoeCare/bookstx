@@ -1,3 +1,4 @@
+from marshmallow import INCLUDE
 from sqlalchemy import Column, Integer, Text, JSON, String
 from werkzeug.security import generate_password_hash as gpass
 from werkzeug.security import check_password_hash as chpass
@@ -20,8 +21,8 @@ class Book(db.Model):
     published_date = Column(String, nullable=True)
     thumbnail = Column(Text)
     categories = Column(String, nullable=True)
-    average_rating = Column(Integer)
-    ratings_count = Column(Integer)
+    average_rating = Column(Integer, nullable=True)
+    ratings_count = Column(Integer, nullable=True)
 
     def __init__(self, dictionary):
         for k, v in dictionary.items():
@@ -65,8 +66,10 @@ class BookSchema(mm.SQLAlchemyAutoSchema):
         load_instance = True
         # fields = ['__all__']
         # exclude = ('categories', 'authors')
-        dump_only = ('thumbnail')
+        # exclude = ['id']
+        # dump_only = ['thumbnail']
+        # unknown = INCLUDE
 
-    thumbnail = fields.fields.Url()
+    # thumbnail = fields.fields.Url()
     # categories = fields.fields.List(fields.fields.Str())
     # authors = fields.fields.List(fields.fields.Str())
