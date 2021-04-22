@@ -1,12 +1,5 @@
-from marshmallow import INCLUDE
-from sqlalchemy import Column, Integer, Text, JSON, String
-from werkzeug.security import generate_password_hash as gpass
-from werkzeug.security import check_password_hash as chpass
+from sqlalchemy import Column, Integer, Text, String
 from app import db, mm
-from flask_marshmallow import Marshmallow, fields
-from flask_sqlalchemy import SQLAlchemy
-from marshmallow_sqlalchemy.fields import Nested
-from marshmallow_sqlalchemy import field_for
 
 
 class Book(db.Model):
@@ -36,12 +29,10 @@ class BookSchema(mm.SQLAlchemyAutoSchema):
 
     class Meta:
         model = Book
-        # alchemy_session = db.session
         sqla_session = db.session
         load_instance = True
         # fields = ['__all__']
         # exclude = ('categories', 'authors')
-        # exclude = ['id']
         # dump_only = ['thumbnail']
         # unknown = INCLUDE
 
