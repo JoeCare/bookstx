@@ -69,15 +69,6 @@ use_of_queries = [
                 ]
 
 
-def queried_book():
-    """Instead of get() one can use get_or_404()
-    and instead of first() first_or_404().
-    This will raise 404 errors instead of returning None:"""
-    queried_book = Book.query.filter(Book.email.endswith('@example.com')).all()
-    queried_book1 = Book.query.order_by(Book.title).all()
-    queried_book2 = Book.query.limit(1).all()
-
-
 def ordered_books(dict_of_queries):
     """
     Return serialized book objects with ordering depending on
@@ -150,7 +141,8 @@ def ordered_books(dict_of_queries):
 class BookScrap(MethodView):
 
     def post(self):
-        books_url = "https://www.googleapis.com/books/v1/volumes?q=Hobbit"
+        body = request.get_json()
+        books_url = f"https://www.googleapis.com/books/v1/volumes?q={body['q']}"
         req = requests.get(books_url).json()
         book_items = req["items"]
         # dig_data = dict_data["items"][0]["volumeInfo"]
@@ -245,7 +237,7 @@ class BooksCrudAPI(MethodView):
     def post(self):
         """
         Create a new  record from data object passed within request body
-        :param:             table of which record will be created;
+        :param body:        table of which record will be created;
         :return:            201 on success, 406 if instance exists
         """
         data_set = request.get_json()
@@ -274,10 +266,13 @@ class BooksCrudAPI(MethodView):
             return jsonify({404: "Record ID not found"})
 
     def put(self, _id):
-        # repost a single book
-        """Return response to HTTP PUT request."""
+        """
+        Update a record with data passed within request body
+        :param _id:         unique ID of the record to update;
+        :param body:        table with data to update record;
+        :return:            200 on success, 404 if not found
+        """
         book = Book.query.filter_by(id=_id).one_or_none()
-        print(book)
         if book:
             new_book = book_schema.load(request.get_json())
             new_book.id = book.id
@@ -285,19 +280,5 @@ class BooksCrudAPI(MethodView):
             db.session.commit()
             response = (200, f'Record updated for ID: {_id}')
         else:
-            # response = (404, f'Record not found for ID: {_id}')
-            new_book = book_schema.load(request.get_json())
-            new_book.id = _id
-            db.session.add(new_book)
-            db.session.commit()
-            response = (201, f'Record created with ID: {_id}')
+            response = (404, f'Record not found for ID: {_id}')
         return jsonify(response)
-
-    #
-    # def patch(self, _id):
-    #     """Return response to HTTP PATCH request."""
-    #     resource = self._resource(_id)
-    #     resource.from_dict(request.get_json())
-    #     self.__db__.session.add(resource)
-    #     self.__db__.session.commit()
-    #     return self._created_response(resource.to_dict())
