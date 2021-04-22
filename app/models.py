@@ -2,13 +2,11 @@ from marshmallow import INCLUDE
 from sqlalchemy import Column, Integer, Text, JSON, String
 from werkzeug.security import generate_password_hash as gpass
 from werkzeug.security import check_password_hash as chpass
-from app import app
+from app import db, mm
 from flask_marshmallow import Marshmallow, fields
 from flask_sqlalchemy import SQLAlchemy
 from marshmallow_sqlalchemy.fields import Nested
 from marshmallow_sqlalchemy import field_for
-db = SQLAlchemy(app)
-mm = Marshmallow(app)
 
 
 class Book(db.Model):

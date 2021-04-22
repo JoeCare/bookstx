@@ -15,6 +15,7 @@ psycopg2-binary = "*"
 gunicorn = "*"
 requests = "*"
 setuptools = "*"
+python-dotenv = "*"
 
 [dev-packages]
 
