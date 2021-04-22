@@ -1,52 +1,148 @@
+import json
+
 from flask.views import MethodView, View
 from .models import Book, BookSchema, db, mm
 from flask import request, jsonify
 import requests, re
 
 
-def queried_book():
-    queried_book = Book.query.filter(Book.email.endswith('@example.com')).all()
-    queried_book1 = Book.query.order_by(Book.title).all()
-    queried_book2 = Book.query.limit(1).all()
-
-    """Instead of get() one can use get_or_404() 
-    and instead of first() first_or_404(). 
-    This will raise 404 errors instead of returning None:"""
-    pass
-
-# def get_books():
-#     req = requests.get(
-#         "https://www.googleapis.com/books/v1/volumes?q=Hobbit").json()
-#     book_items = req["items"]
-#     # dig_data = dict_data["items"][0]["volumeInfo"]
-#     book_dict = {}
-#     for book in book_items:
-#         info = book["volumeInfo"]
-#         imgs = info["imageLinks"]
-#         _id = book["id"]
-#         title = info["title"]
-#         authors = info["authors"]
-#         published_date = info["publishedDate"]
-#         thumbnail = imgs["thumbnail"]
-#         if "categories" in info.keys():
-#             categories = info["categories"]
-#             print(categories)
-#         # try:
-#         #     categories = info["categories"]
-#         #     ratings_count = info["ratingsCount"]
-#         #     average_rating = info["averageRating"]
-#         # except KeyError as err:
-#         #     print(err.args)
-#             print(_id, title, authors, published_date, thumbnail)
 book_schema = BookSchema()
 books_schema = BookSchema(many=True)
-                          # exclude=['ratings_count', 'average_rating'])
+use_of_queries = [
+                "API response customization. Query through URL.",
+                "Type one of the valid variables after "
+                "quotation mark",
+                {
+                    "Basic usage": "/resource?query",
+                    "Attribute NOTICE": "Misspelled attributes are ignored!",
+                    "Attributes": "authors, authors_like, published_date, "
+                                  "categories, categories_like "
+                                  "title, title_like",
+                    "Examples": [
+                        {
+                            "/resource?published_date=1882":
+                                "This return only records published at "
+                                "given date"
+                            },
+                        {
+                            "/resource?authors='Jan Morsztyn'":
+                                "Return only records written by specified "
+                                "authors"
+                            },
+                        {
+                            "/resource?authors_like=Jan":
+                                "Return all records written by authors "
+                                "with similar names"
+                            },
+                        {
+                            "/resource?categories=Algorithms":
+                                "Return only records of that particular "
+                                "category/categories"
+                            },
+                        {
+                            "/resource?categories_like=Rel":
+                                "Return all records containing given phrase "
+                                "within it's categories labels"
+                            },
+                        {
+                            "/resource?title='The Hobbit,"
+                            " Or There and Back Again'":
+                                "Return only records of given title"
+                            },
+                        {
+                            "/resource?title_like='Hobbit'":
+                                "Return all records with title similar to or "
+                                "containing given phrase"
+                            },
+                        {
+                            "/resource?sort=-authors":
+                                "Return list of records sorted according to "
+                                "authors names in descending order"
+                            },
+                        {
+                            "/resource?sort=published_date":
+                                "Return list of records sorted according to"
+                                " publication time in ascending order"
+                            },
+                        ],
+                    },
+                ]
+
+
+def ordered_books(dict_of_queries):
+    """
+    Return serialized book objects with ordering depending on
+    parameters passed to function.
+    """
+    book_attrs = ['authors', 'published_date', 'categories', 'title']
+    book_attrs_pattern = re.compile(r"\b" + r"\b|".join(book_attrs) + r"\b",
+                                    re.IGNORECASE)
+    order = None
+    by_column = None
+    base_query = f"SELECT * FROM books"
+    filter_query = None
+    sort_query = None
+    filter_error = None
+    sorting_error = None
+    filter_like_error = None
+    for k, v, in dict_of_queries.items():
+        if k == "sort" and book_attrs_pattern.findall(v):
+            if v.startswith("-"):
+                order = 'DESC'
+                by_column = v.replace("-", "")
+            else:
+                order = 'ASC'
+                by_column = v
+            sort_query = f"ORDER BY {by_column} {order}"
+            # sort_query = db.session.execute(
+            #     f"{base_query} ORDER BY {by_column} {order};")
+        elif k == "sort":
+            sorting_error = {400: f'Sorting error: Invalid parameter: "{v}"'}
+        else:
+            if k.endswith("_like"):
+                column = k.replace("_like", "")
+                value = v.replace("'", "").replace('"', '')
+                filter_query = f"WHERE {column} LIKE '%{value}%'"
+                check_filter = db.session.execute(f"{base_query} {filter_query}")
+                if books_schema.dump(check_filter):
+                    pass
+                else:
+                    filter_error = {404: f'Filter error: Parameters not found: '
+                                         f'"{v}"'}
+            else:
+                value = v.replace("'", "").replace('"', '')
+                filter_query = f"WHERE {k}='{value}'"
+                check_filter = db.session.execute(f"{base_query} {filter_query}")
+                if books_schema.dump(check_filter):
+                    pass
+                else:
+                    filter_error = {404: f'Filter error: Parameters not found: '
+                                         f'"{v}"'}
+    # q_dict = {}
+    errors = []
+    custom_query = f"{filter_query} {sort_query}".replace("None","")
+    print(custom_query)
+    final_query = f"{base_query} {custom_query}"
+    print(final_query)
+    # result = books_schema.dump(db.session.execute(final_query))
+    if filter_error or sorting_error:
+        if filter_error:
+            errors.append(filter_error)
+        if sorting_error:
+            errors.append(sorting_error)
+        # if filter_like_error:
+        #     errors.append(filter_like_error)
+        return jsonify(errors, use_of_queries)
+    if filter_query or sort_query:
+        result = books_schema.dump(db.session.execute(final_query))
+        return jsonify(result)
 
 
 class BookScrap(MethodView):
 
     def post(self):
-        books_url = "https://www.googleapis.com/books/v1/volumes?q=Hobbit"
+        body = request.get_json()
+        books_url = f"https://www.googleapis.com/books/v1/volumes?q={body['q']}"
         req = requests.get(books_url).json()
         book_items = req["items"]
         # dig_data = dict_data["items"][0]["volumeInfo"]
@@ -72,7 +168,7 @@ class BookScrap(MethodView):
             except KeyError as e:
                 print(e)
             # print(book_dict)
-            # data_to_obj = book_schema.loads(json.dumps(book_dict))
+            # data_to_obj = book_schema.load(book_dict)
             # print(data_to_obj)
             new_book = Book(book_dict)
             db.session.add(new_book)
@@ -81,13 +177,15 @@ class BookScrap(MethodView):
         return jsonify(
             201, f"Instances loaded: {len(book_items)}")
 
+
 # query_strings_mapper = {
-#     "sort": Book.query.order_by()
+#     "order_by": Book.query.order_by()
 #
 #     }
 # same = set(query_string).intersection(set(queries))
 # if re.compile('|'.join(queries), re.IGNORECASE).search(
 #         str(query_string)):
+
 
 class BooksCrudAPI(MethodView):
 
@@ -99,96 +197,88 @@ class BooksCrudAPI(MethodView):
         :return collection:         return all records of /books resource
         """
         if _id is None:
-            query_string = request.args.to_dict()
-            queries = ['sort', 'filter', 'authors',
-                       'published_date', 'categories', 'title']
-            use_of_queries = [
-                "Querying through URL, API response customization",
-                {"Basic usage": "/resource?query",
-                 "Type one of the valid variables after quotation mark":
-                    queries[2:5],
-                 "Examples": [
-                    {"/resource?published_date=1882":
-                        "This return only records published at particular "
-                        "year"},
-                    {"/resource?authors='Jan Morsztyn'":
-                        "That query perform database lookup to find records"
-                        "co-written by indicated authors"},
-                    {"/resource?categories=Algorithms":
-                        "Return records containing such category label"},
-                    {"/resource?title=Curious":
-                        "Response more or less loosely narrowed by title "
-                        "part"},
-                    {"/resource?sort=-title":
-                        "Organise response as sorted by title -descending"},
-                    {"/resource?sort=authors":
-                        "Sorted alphabetically with writers names (a-z)"},
-                    {"/resource?filter=authors&authors='Marek Grechura'":
-                        "Little bit different from antecedents. Require more "
-                        "then one key:value pair - those indicates "
-                        "filtering  particular attribute of specified value."}
-                     ],
-                    }
-                ]
-            keys_re = re.compile(r"\b" + r"\b|".join(queries[0:2]) + r"\b")
-            vals_re = re.compile(r"\b" + r"\b|".join(queries[2:6]) + r"\b")
-            if query_string: # and (set(query_string).isdisjoint(queries)):
-                keys = keys_re.findall(str(query_string))
-                vals = vals_re.findall(str(query_string))
-                for k, v in query_string.items():
-                    print(k,v,query_string)
-                    if keys:
-                        if k == 'sort' and v.startswith("-"):
-                            value = vals_re.findall(v)
-                            print(value)
-                            books_desc = Book.query.order_by(
-                                Book.value.desc()).all()
-                            result = books_schema.dump(books_desc)
-                            return jsonify(result)
-                        # sortuje sie elegabcko desc po tytule
-                        # tylko v nie dziala w query...
-                        elif not v.startswith("-") and k == 'sort':
-                            books_asc = Book.query.order_by(
-                                Book.v.asc()).all()
-                            result = books_schema.dump(books_asc)
-                            return jsonify(result)
-
-                    # return jsonify({"?": query_string},
-                    #                {400: 'Missing or invalid parameters!'})
-                return jsonify({400: 'Parameters required!'},
-                               {"Possible queries": queries}, use_of_queries)
+            query_dict = {}
+            query_dict["sort"] = request.args.get('sort')
+            query_dict["authors"] = request.args.get('authors')
+            query_dict["authors_like"] = request.args.get('authors_like')
+            query_dict["published_date"] = request.args.get('published_date')
+            query_dict["categories"] = request.args.get('categories')
+            query_dict["categories_like"] = request.args.get('categories_like')
+            query_dict["title"] = request.args.get('title')
+            query_dict["title_like"] = request.args.get('title_like')
+            if any(query_dict.values()): #  and any(query_dict.values()):
+                print('querydict:', query_dict)
+                query_strings = {}
+                for k, v in query_dict.items():
+                    if v:
+                        query_strings[k] = v
+                        print('Possible:', query_dict, 'not None:',
+                              query_strings)
+                custom_queried = ordered_books(query_strings)
+                return custom_queried
             else:
-                # return list without custom queries
+                print('List without queries')
                 books = Book.query.all()
-                results = books_schema.dump(books)
-                return jsonify(results)
+                print(books[:3])
+                if books:
+                    results = books_schema.dump(books)
+                    return jsonify(results)
+                else:
+                    return jsonify({204: 'Storage is empty'})
         else:
             book = Book.query.filter_by(id=_id).one_or_none()
             if book:
+                print(book)
                 result = book_schema.dump(book)
                 return jsonify(result)
+            else:
+                return jsonify({404: 'Record not found'})
 
     def post(self):
         """
-        Create a new  record from data object passed with request
-        :param:    table of which record will be created;
-        instance
-        class
-        :return:        201 on success, 406 if instance exists
+        Create a new  record from data object passed within request body
+        :param body:        table of which record will be created;
+        :return:            201 on success, 406 if instance exists
         """
         data_set = request.get_json()
-
-        # instances = get_data_dict(data_url)
-        # new_loc = Book(dict_data["items"][0]["volumeInfo"])
-        # db.session.add(new_loc)
-        # db.session.commit()
-        return jsonify(
-            201, f"Instances loaded: ") # {dig_data}", dict_data)
+        # to_obj = book_schema.load(request.get_json())
+        # print(to_obj)
+        new_book = Book(data_set)
+        db.session.add(new_book)
+        # db.session.add(to_obj)
+        db.session.commit()
+        return jsonify(201, f"Instance loaded: {new_book}")
+        # return jsonify(201, f"Instance loaded: {to_obj}")
 
     def delete(self, _id):
-        # delete a single book
-        pass
+        """
+        DELETE request response removes single record of
+        given _id from database
+        :param  _id:        unique identification number of record
+        :return:            204 if succeeded, or 404 error
+        """
+        book = Book.query.filter_by(id=_id).one_or_none()
+        if book:
+            db.session.delete(book)
+            db.session.commit()
+            return jsonify({204: "Deleted"})
+        else:
+            return jsonify({404: "Record ID not found"})
 
     def put(self, _id):
-        # update a single book
-        pass
+        """
+        Update a record with data passed within request body
+        :param _id:         unique ID of the record to update;
+        :param body:        table with data to update record;
+        :return:            200 on success, 404 if not found
+        """
+        book = Book.query.filter_by(id=_id).one_or_none()
+        if book:
+            new_book = book_schema.load(request.get_json())
+            new_book.id = book.id
+            db.session.merge(new_book)
+            db.session.commit()
+            response = (200, f'Record updated for ID: {_id}')
+        else:
+            response = (404, f'Record not found for ID: {_id}')
+        return jsonify(response)

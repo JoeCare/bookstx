@@ -1,5 +1,5 @@
 import os
-from os import path, getenv
+from os import getenv
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -17,7 +17,7 @@ class ProdConfig(Config):
     FLASK_ENV = 'production'
     DEBUG = False
     TESTING = False
-    DATABASE_URI = getenv('PROD_DATABASE_URI')
+    SQLALCHEMY_DATABASE_URI = getenv('DATABASE_URI')
     SQLALCHEMY_ECHO = True
 
 
@@ -26,6 +26,6 @@ class DevConfig(Config):
     DEBUG = True
     TESTING = True
     SQLALCHEMY_ECHO = False
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(BASE_DIR, 'app.db')
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(BASE_DIR,
+                                                          'app/app.db')
     # DATABASE_URI = "sqlite:///:memory:"
-    # DATABASE_URI = getenv('DEV_DATABASE_URI')
